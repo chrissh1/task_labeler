@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ session.csrf }}">
+  <title>Reasoning study · EECS 594</title>
+  <link rel="stylesheet" href="{{ url_for('static',filename='style.css') }}">
+  <script src="{{ url_for('static',filename='study.js') }}" defer></script>
+</head>
+<body>
+<header><a href="/">Reasoning study</a><span>EECS 594</span></header>
+{% if preview %}<div class="demo">Testing preview · Responses are excluded from the real study</div>{% endif %}
+{% if demo %}<div class="demo">Development demo · Authored questions and simulated AI · Not study data</div>{% endif %}
+<main>{% block content %}{% endblock %}</main>
+<footer>Your saved progress stays available when you return with the same email.</footer>
+</body>
+</html>

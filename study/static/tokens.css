@@ -1,0 +1,15 @@
+:root {
+  --color-background: #FAF8F2;
+  --color-surface: #FFFFFF;
+  --color-sage: #E5EEDC;
+  --color-peach: #F6E3D5;
+  --color-text: #26332D;
+  --color-muted: #536057;
+  --color-action: #38563F;
+  --color-action-hover: #29412F;
+  --color-border: #A7B4A3;
+  --color-focus: #80522F;
+  --color-error: #8B3024;
+  --font-body: 'Avenir Next', 'Segoe UI', 'Helvetica Neue', sans-serif;
+  --radius-control: 6px;
+}

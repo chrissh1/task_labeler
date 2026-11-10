@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block content %}
+<div id="study" data-session-id="{{ state.session_id }}" data-condition="{{ state.condition }}" data-stage="{{ state.stage }}">
+<p class="eyebrow">{{ 'AI-assisted' if state.condition == 'ai' else 'No assistance' }}</p>
+{% if state.stage == 'instructions' %}
+<section class="narrow">
+  <h1>Before you begin</h1>
+  <p>After a short instructions check and a practice question, you’ll answer {{ state.total }} scored questions. Select one final answer and a confidence rating for each. No options are selected for you.</p>
+  <p>Work independently, without outside tools or help. You can return home and resume later. Submitted answers are saved and cannot be changed; correctness is not shown during the study.</p>
+  {% if state.condition == 'ai' %}<div class="callout"><p>An AI suggestion will appear for each question. It may be wrong; you make the final decision. You may ask short follow-up questions or answer while the suggestion loads. Please do not enter personal information into chat.</p></div>{% endif %}
+  <p>We record answers, confidence, timing, and instructions-check attempts.{% if state.condition == 'ai' %} We also record AI messages, follow-up exchanges, and when messages are displayed.{% endif %} Your email restores progress and links your two parts.</p>
+  <form id="begin-form"><button type="submit">Continue to instructions check</button><p class="status" role="status"></p></form>
+</section>
+{% elif state.stage == 'attention' %}
+<section class="narrow">
+  <h1>Instructions check</h1>
+  <form id="attention-form">
+    <fieldset><legend>This checks that the instructions are clear. Please select option C.</legend>
+      {% for letter in 'ABCD' %}<label class="choice"><input type="radio" name="answer" value="{{ loop.index0 }}" required><span>Option {{ letter }}</span></label>{% endfor %}
+    </fieldset>
+    <button type="submit">Continue</button><p class="status" role="status"></p>
+  </form>
+</section>
+{% elif state.stage == 'trials' %}
+{% set trial = state.trial %}
+<div class="trial-layout {{ 'with-ai' if state.condition == 'ai' else '' }}" id="trial" data-trial-id="{{ trial.id }}">
+  <section class="question-pane">
+    <p class="progress">{% if trial.practice %}Practice · Not scored{% else %}Question {{ trial.position }} of {{ state.total }}{% endif %}</p>
+    <h1>{{ 'Try the controls' if trial.practice else 'Choose your answer' }}</h1>
+    {% if trial.practice %}<p class="callout">Practice selecting an answer and confidence below. The even number is 4 (option B), because it is divisible by 2. This practice answer does not count toward study results.</p>{% endif %}
+    <form id="answer-form">
+      <fieldset><legend class="question-text">{{ trial.question }}</legend>
+      {% for choice in trial.choices %}<label class="choice"><input type="radio" name="answer" value="{{ loop.index0 }}" required><span><strong>{{ 'ABCD'[loop.index0] }}.</strong> {{ choice }}</span></label>{% endfor %}
+      </fieldset>
+      <fieldset class="confidence"><legend>How confident are you that your selected answer is correct?</legend>
+        {% for number,label in [(1,'Not at all confident'),(2,'Slightly confident'),(3,'Moderately confident'),(4,'Confident'),(5,'Very confident')] %}
+        <label class="confidence-option"><input type="radio" name="confidence" value="{{ number }}" required><span><strong>{{ number }}</strong> {{ label }}</span></label>
+        {% endfor %}
+      </fieldset>
+      <button type="submit">Save and continue</button>
+      <p class="status" role="status"></p>
+    </form>
+  </section>
+  {% if state.condition == 'ai' %}
+  <aside class="assistant" aria-labelledby="assistant-title">
+    <h2 id="assistant-title">AI assistance</h2>
+    <p class="muted">Suggestions may be wrong. The final answer is yours.</p>
+    <p id="ai-status" role="status">Preparing a suggestion… You can answer at any time.</p>
+    <div id="messages"></div>
+    <button id="ai-retry" class="secondary" type="button" hidden>Retry assistance</button>
+    <form id="chat-form">
+      <label for="chat">Optional clarification</label>
+      <textarea id="chat" name="text" rows="3" maxlength="600" placeholder="Ask about this question or a concept." required></textarea>
+      <div class="prompts">{% for prompt in ['Explain the key concept','Why this option?','Compare two choices'] %}<button type="button" class="prompt secondary">{{ prompt }}</button>{% endfor %}</div>
+      <p class="muted">Up to {{ max_followups }} follow-ups, 600 characters each. Please omit personal information.</p>
+      <button type="submit">Ask AI</button>
+    </form>
+  </aside>
+  {% endif %}
+</div>
+{% elif state.stage == 'comment' %}
+<section class="narrow">
+  <h1>Your answers are saved.</h1>
+  <form id="comment-form">
+    <label for="comment">{{ 'What helped or made the AI assistance difficult to use?' if state.condition == 'ai' else 'What made these questions easy or difficult?' }}</label>
+    <p class="muted">Optional. Please omit personal information.</p>
+    <textarea id="comment" name="comment" rows="5" maxlength="2000"></textarea>
+    <button type="submit">Finish this part</button><p class="status" role="status"></p>
+  </form>
+</section>
+{% elif state.stage == 'complete' %}
+<section class="narrow"><h1>This part is complete.</h1><p>Thank you. Your responses have been saved.</p><p>When your class spreadsheet directs you to the other part, use the same email address so your responses can be linked.</p><a class="button" href="/">Back to home</a></section>
+{% endif %}
+</div>
+{% endblock %}

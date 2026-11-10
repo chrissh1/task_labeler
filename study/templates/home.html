@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="narrow">
+  <p class="eyebrow">Human–AI reasoning study</p>
+  <h1>A few questions about reasoning.</h1>
+  <p>You’ll answer multiple-choice questions about logic and arguments, then rate your confidence. There are two separate parts: with AI assistance and without assistance.</p>
+  <p>We aim for both parts together to take under ten minutes. Follow your class spreadsheet to choose which part to complete now.</p>
+  {% if not identified %}
+  <p>Your email links the two parts and restores saved progress, including on another device. This is identification only; email addresses are not verified.</p>
+  <form action="/identify" method="post" id="identify-form">
+    <input type="hidden" name="csrf" value="{{ session.csrf }}">
+    <input type="hidden" name="condition" value="{{ requested }}">
+    <label for="email">Email address</label>
+    <input id="email" name="email" type="email" autocomplete="email" maxlength="254" required>
+    <button type="submit">Continue</button>
+    <p class="status" role="status"></p>
+  </form>
+  {% else %}
+  <h2>Choose a part</h2>
+  <div class="conditions">
+    {% for condition,label in [('ai','AI-assisted'),('baseline','No assistance')] %}
+    {% set saved = states|selectattr('condition','equalto',condition)|list %}
+    {% set s = saved[0] if saved else none %}
+    <section class="condition">
+      <div><h3>{{ label }}</h3><p>{% if s and s.stage == 'complete' %}Complete{% elif s and s.started %}In progress · {{ s.answered }} of {{ s.total }} answered{% else %}Not started{% endif %}</p></div>
+      <a class="button" href="/study?condition={{ condition }}">{% if s and s.stage == 'complete' %}View completion{% elif s and s.started %}Resume{% else %}Start{% endif %}</a>
+    </section>
+    {% endfor %}
+  </div>
+  <form action="/signout" method="post"><input type="hidden" name="csrf" value="{{ session.csrf }}"><button class="secondary" type="submit">Use a different email</button></form>
+  {% endif %}
+</section>
+{% endblock %}
