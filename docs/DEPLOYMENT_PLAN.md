@@ -1,3 +1,8 @@
+> Current deployment choice: SQLite for local testing, one Supabase project for
+> production. Separate cloud preview support is optional; missing preview configuration
+> deliberately blocks preview startup. The implementation boundaries below also cover
+> that optional support.
+
 # Vercel / Supabase preparation plan
 
 Scope: retain four scored questions per condition, current UI, email-only identification,
@@ -19,9 +24,9 @@ credential creation, account changes, or real participant collection in this wor
 - `study/__init__.py`, import/export/analysis CLI: work with either backend; preview
   responses are marked non-study and excluded from primary analysis/export. Credentials
   never appear in browser responses or logs. No migrations run during application startup.
-- `vercel.json`, static asset preparation, environment examples, deployment guide: deploy
-  from task_labeler; serverless Flask entry point; static files in public; time budget above
-  the provider timeout. Preview and production use separate Supabase projects and secrets.
+- Standard `wsgi.py`, committed `public/static` assets, environment examples, and deployment
+  guide: deploy from task_labeler using automatic Flask detection, with no custom build
+  command or vercel.json. Preview and production use separate Supabase projects and secrets.
 
 ## Acceptance criteria and tests
 

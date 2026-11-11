@@ -26,7 +26,13 @@ from .service import allocate, current_trial, normalize_email, session_state, ui
 
 def create_app(config=None, provider=None):
     deployment = deployment_settings(os.environ)
-    app = Flask(__name__, static_folder=None if deployment.hosted else "static")
+    app = Flask(
+        __name__,
+        static_folder=None
+        if deployment.hosted
+        else str(Path(__file__).resolve().parents[1] / "public" / "static"),
+        static_url_path="/static",
+    )
     if deployment.hosted:
         app.add_url_rule("/static/<path:filename>", endpoint="static", build_only=True)
     mode = os.getenv("STUDY_MODE", "demo")

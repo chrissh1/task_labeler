@@ -4,10 +4,14 @@ The implementation is prepared for Flask on Vercel with Supabase Postgres. No re
 project has been created or deployed automatically. The study remains **four scored
 questions per condition**. Local SQLite demo support is retained.
 
-Use **two separate Supabase projects**: one for preview/testing and one for production.
-Do not use two tables in the same project as the isolation boundary. Do not migrate
-local demo progress. Import the real Assignment 2 dataset independently into each
-project if you want a realistic preview with live AI.
+Use **SQLite locally and one Supabase project for production**. No cloud preview
+project is needed. Local test data stays in local SQLite files; it is not migrated
+or uploaded. Import the real Assignment 2 dataset into the production project.
+
+Vercel preview URLs remain blocked without separate preview configuration. They never
+fall back to production credentials or attempt to persist SQLite inside Vercel. Do
+manual testing locally and deploy the production branch when ready. Production form
+submissions count as real study records; avoid submitting test answers there.
 
 ## 1. Install and verify locally
 
@@ -35,9 +39,9 @@ transaction advisory lock to retain SQLite's single-writer semantics across serv
 instances. Provider requests occur outside write transactions. This prioritizes the
 existing classroom concurrency/correctness contract; no throughput gains are claimed.
 
-## 2. Create and provision the two Supabase projects
+## 2. Create and provision one production Supabase project
 
-For **each** project, generate a different database identity:
+Generate its database identity:
 
 ```sh
 python -c 'import uuid; print(uuid.uuid4())'
@@ -48,19 +52,16 @@ connection details. For owner provisioning with psql, set `PGHOST`, `PGPORT`, `P
 `PGDATABASE=postgres`, and `PGSSLMODE=require` to those details. Keep passwords out of
 shell arguments and source files; `-W` prompts securely.
 
-For preview (replace UUID below with your generated value):
+For production (replace UUID below with your generated value):
 
 ```sh
-psql -W -v deployment_environment=preview \
-  -v database_id=YOUR_PREVIEW_UUID -f scripts/provision_postgres.sql
+psql -W -v deployment_environment=production \
+  -v database_id=YOUR_PRODUCTION_UUID -f scripts/provision_postgres.sql
 psql -W
 ```
 
 In the second interactive psql session, run `\password study_runtime` and set a fresh
 runtime password. Exit with `\q`.
-
-Repeat against the **separate production project**, using
-`deployment_environment=production`, a new UUID, and a different runtime password.
 
 Provisioning creates a private `study` schema, an immutable environment/UUID/version
 marker, tables, constraints, immutable question/dataset/session-assignment triggers,
@@ -81,12 +82,16 @@ file, and percent-encode reserved characters in the URL password.
 
 | Variable | Use |
 | --- | --- |
-| `PREVIEW_DATABASE_URL` | Preview **runtime-role transaction-pooler** URL |
-| `PREVIEW_DATABASE_ID` | UUID used to provision preview |
 | `PRODUCTION_DATABASE_URL` | Production **runtime-role transaction-pooler** URL |
 | `PRODUCTION_DATABASE_ID` | UUID used to provision production |
-| `PREVIEW_ADMIN_DATABASE_URL` | Preview owner direct/session-pooler URL, local maintenance only |
 | `PRODUCTION_ADMIN_DATABASE_URL` | Production owner direct/session-pooler URL, local maintenance only |
+
+In Supabase's Connect dialog, select **Direct / Connection string**, then choose
+**Transaction pooler** for runtime URLs. The tab name “Direct” is not an instruction to
+choose a non-pooled connection. The **Server** tab's `@supabase/server`, `SUPABASE_URL`,
+and API-key setup is for a different integration; this Python app uses Psycopg and a
+Postgres URL. Connecting alone does not create the app's tables: complete the one-time
+provisioning and dataset import above/below first.
 
 For a custom runtime role, the Supabase shared-pooler username is of the form
 `study_runtime.PROJECT_REFERENCE`; use the corresponding pooler host/port from Connect.
@@ -102,48 +107,51 @@ set -a
 source .env
 set +a
 
-python -m study --environment preview --admin import questions.csv \
-  --version assignment2-final-v1 --results ../task_model_eval/final_run/results.csv
 python -m study --environment production --admin import questions.csv \
   --version assignment2-final-v1 --results ../task_model_eval/final_run/results.csv
 
 # Verify the restricted runtime connections, marker, and dataset:
-python -m study --environment preview check
 python -m study --environment production check
 ```
 
-Expect 200 questions and zero participants in both new projects. The importer validates
+Expect 200 questions and zero participants in the production project. The importer validates
 and preserves exact source/result bytes and hashes; no MMLU resampling or model calls.
 Production rejects demo imports and demo app mode. Imports cannot replace an existing
 dataset. The CLI never prints database URLs or provider credentials.
 
-A preview can alternatively use authored demo questions with `--demo` and
-`STUDY_MODE=demo`; use a **fresh preview project** for a different immutable dataset.
-It then uses fake AI and needs no provider key. The recommended realistic pilot uses
-the real dataset, `STUDY_MODE=study`, and a live Gemini key.
+For local tests with real questions and live AI, keep `APP_ENV=local`, set
+`STUDY_MODE=study` and `STUDY_DATABASE=instance/local-pilot.sqlite3`, and import the
+real CSV into that local file using `--database instance/local-pilot.sqlite3`. This
+requires a Gemini key but no Supabase connection. Keep pilot exports separate from
+actual collection exports; only the production Supabase database is collection data.
+For ordinary UI tests, keep the existing SQLite demo and fake provider.
 
-## 4. Configure Vercel, then deploy preview for review
+## 4. Connect GitHub to Vercel and deploy production
 
-Connect the repository and set **Root Directory = task_labeler**. Python is pinned by
-`.python-version` to 3.12. Vercel recognizes `wsgi.py` as the Flask entry point; it does
-not use the README's Gunicorn command. `vercel.json` sets the build command and a
-120-second function duration. Confirm that your selected Vercel plan supports that
-budget and inspect the deployment build output for the effective configuration.
+Import the GitHub repository in Vercel. Set **Root Directory = task_labeler** if the
+repository contains the parent directory; use the repository root if it contains only
+this app. Accept automatic Flask detection and leave the Build Command override unset.
+There is no `vercel.json` or custom asset-build script. If you previously configured
+`python scripts/prepare_static.py` in Vercel's dashboard, clear that override.
 
-The build command `python scripts/prepare_static.py` copies only `style.css`,
-`tokens.css`, and `study.js` into `public/static`. It does not import the app, contact
-Postgres, or migrate data. On Vercel the CDN serves these assets; local Flask serves the
-same source files. Local databases, secrets, virtualenvs, tests, exports, and backups
-are excluded from deployment. Nothing containing answer keys is placed in `public`.
+Vercel recognizes `wsgi.py` as the Flask entry point. `.python-version` selects Python
+3.12 and `requirements.txt` declares dependencies. It does not use the README's Gunicorn
+command. Current Fluid compute defaults provide a 300-second maximum duration, above
+the application's 60-second provider timeout; no duration override is needed. If an
+existing project has a shorter dashboard override, remove it before testing live AI.
+
+The CSS and JavaScript are committed directly in `public/static`, Vercel's standard
+public-asset directory. Local Flask serves those same files at `/static`. There is no
+copy/build step. `.vercelignore` excludes local databases, secrets, virtualenvs, tests,
+exports, and backups. Nothing containing answer keys is placed in `public`.
 
 Configure Vercel variables using **environment-specific scopes**:
 
 | Vercel scope | Variables available in that scope only |
 | --- | --- |
-| Preview | `PREVIEW_DATABASE_URL`, `PREVIEW_DATABASE_ID`, a preview `SECRET_KEY`, `GEMINI_API_KEY` |
-| Production | `PRODUCTION_DATABASE_URL`, `PRODUCTION_DATABASE_ID`, a different production `SECRET_KEY`, `GEMINI_API_KEY` |
+| Production | `PRODUCTION_DATABASE_URL`, `PRODUCTION_DATABASE_ID`, a production `SECRET_KEY`, `GEMINI_API_KEY` |
 
-In each scope, also set `STUDY_MODE=study`, `TRIALS_PER_CONDITION=4`, `MAX_FOLLOWUPS=3`,
+In Production, also set `STUDY_MODE=study`, `TRIALS_PER_CONDITION=4`, `MAX_FOLLOWUPS=3`,
 and `COOKIE_SECURE=1`. Retain secret keys across subsequent deployments. Do not upload
 `.env`, configure owner `*_ADMIN_DATABASE_URL` values in Vercel, or scope production
 credentials to Preview/Development. `.env.vercel.example` is a reference only.
@@ -159,10 +167,11 @@ schema version before accessing study data. Accidentally placing a production UR
 `PREVIEW_DATABASE_URL` fails even if its UUID was also copied. Preview and production
 have different signed-cookie names and should have different signing secrets.
 
-Start with a Vercel **preview** deployment. All preview sessions are marked `demo=1`
-(non-study), even with real questions/live AI. A visible testing banner identifies them.
-Default exports refuse preview databases; explicit test exports remain marked and are
-excluded from primary analysis. These flags supplement separate physical projects.
+Leave Preview database variables unset for this local-testing workflow. A preview
+build may complete, but its application will refuse to start; this is intentional.
+Only the production deployment should have working Supabase credentials. If you later
+want usable cloud preview URLs, add a separate preview project and scoped credentials;
+never point preview variables at the production database.
 
 Before launching production, verify that the chosen participant URLs are publicly
 accessible without Vercel-account sign-in. Keep owner/admin access private; there is
@@ -174,7 +183,6 @@ and `/study?condition=ai`.
 Run locally with the appropriate private environment variables loaded:
 
 ```sh
-python -m study --environment preview export exports/preview-pilot --include-demo
 python -m study --environment production export exports/collection-01
 python -m study --environment production analyze > exports/analysis.json
 python -m study --environment production --admin backup backups/production.dump
@@ -200,7 +208,7 @@ saved trials and the deployment marker. Do not infer that a backup is good merel
 its existence.
 
 No automatic schema upgrades are included. Before future schema changes, back up and
-test in preview. Roll back only to a schema-compatible app release; otherwise recover
+test against a disposable local Postgres database. Roll back only to a schema-compatible app release; otherwise recover
 into a new project and validate before switching credentials.
 
 ## Release checklist and verification limits
@@ -209,7 +217,7 @@ Completed locally: SQLite regressions; real Postgres provisioning/import; restri
 permissions; full preview and production flows; email recovery and idempotent saves;
 preview exclusion; wrong-environment refusal before writes; concurrent AI deduplication
 and submission; repeatable-read export snapshots; transaction rollback; custom backup
-and restore; static-build, Python lint/format/compile, and JavaScript syntax checks.
+and restore; static-asset, Python lint/format/compile, and JavaScript syntax checks.
 Tests use fake AI and synthetic participants on disposable databases. No real responses
 or remote projects were created. Verification reused installed Flask/Psycopg packages
 from `data_labeler` because registry DNS blocked a clean dependency installation.
@@ -217,12 +225,12 @@ from `data_labeler` because registry DNS blocked a clean dependency installation
 Still required before participant collection:
 
 - Install the full declared dependencies in a clean environment/build.
-- Provision both projects, set scoped runtime secrets, and verify actual Supabase pooler/TLS access.
-- Check Vercel static assets, forms, secure cookies, the preview banner, and the configured timeout.
-- Perform browser keyboard/mobile and cross-device resume checks on preview.
+- Provision the production project, set Production-scoped secrets, and verify Supabase pooler/TLS access.
+- Check local forms and verify deployed static assets, secure cookies, and function configuration without submitting test responses to production.
+- Perform browser keyboard/mobile and resume checks against the local test application.
 - Run a credentialed Gemini pilot; inspect exact displayed-output logs and late responses.
 - Time both conditions together before claiming the ten-minute target.
-- Confirm preview never increments production participant/session counts and production starts clean.
+- Confirm local testing leaves production participant/session counts unchanged and production starts clean.
 - Verify backup/restore and exports against the hosted project, then collect at least five valid
   completed participants per condition. No significance or outcome results are fabricated.
 

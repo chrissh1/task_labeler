@@ -8,8 +8,9 @@ No public deployment or real participant collection is performed by setup or tes
 ## Vercel and Supabase
 
 For the prepared serverless deployment, follow [the deployment guide](docs/VERCEL_SUPABASE.md).
-It uses separate Supabase projects for preview and production, restricted runtime roles,
-and checked database identities. Preview responses never enter real-study analysis.
+Use SQLite for local testing and **one Supabase project for production**. Restricted
+runtime roles and database identity checks protect collection data. Cloud previews are
+optional and stay blocked unless a separate preview database is explicitly configured.
 The single-instance SQLite deployment below remains an alternative.
 
 ## Quick start: explicit development demo
@@ -268,7 +269,7 @@ migration or rolling multi-instance deployment is included in this small app.
 ```sh
 python -m pytest tests -q
 python -m compileall -q study wsgi.py
-node --check study/static/study.js
+node --check public/static/study.js
 # Requires PostgreSQL binaries; starts/stops a disposable server:
 python scripts/check_postgres.py
 ```
